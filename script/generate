@@ -1,0 +1,26 @@
+#!/bin/bash
+set -eu
+cd "$( dirname "${BASH_SOURCE[0]}" )/.."
+
+# update official source here
+official_source_url="https://www.nalog.ru/html/sites/www.new.nalog.ru/doc/pril2_fns229_210317.docx"
+
+if [[ ! -d venv ]] ; then
+	virtualenv --python=python3 venv
+	venv/bin/pip install python-docx
+else
+	echo '- reuse venv' >&2
+fi
+
+tmpname_docx=nalog-official.tmp.docx
+if [[ ! -f "$tmpname_docx" ]] ; then
+	( set -eux ;
+	curl -fLsS -o "$tmpname_docx" "$official_source_url"
+	)
+else
+	echo '- reuse docx' >&2
+fi
+
+echo '- docx -> tags.gen.go' >&2
+rm -f tags.gen.go
+venv/bin/python script/generate-tags.py "$tmpname_docx" >tags.gen.go
