@@ -20,7 +20,14 @@ func findCheckEqual(t testing.TB, f ru_nalog.FindByTager, tag ru_nalog.Tag, expe
 		case time.Time:
 			require.Equal(t, expected.UnixNano(), tlv.Time().UnixNano(), message)
 		case string:
-			require.Equal(t, expected, tlv.String(), message)
+			switch tlv.TagDesc.Kind {
+			case ru_nalog.DataKindString:
+				require.Equal(t, expected, tlv.String(), message)
+			case ru_nalog.DataKindBytes:
+				require.Equal(t, expected, string(tlv.Bytes()), message)
+			default:
+				t.Fatalf("not implemented")
+			}
 		default:
 			require.Equal(t, expected, tlv.Value(), message)
 		}
@@ -134,7 +141,7 @@ func TestParseResponseDoc(t *testing.T) {
 				{"tag": 1079, "value": 3300, "printable": "33,00"},
 				{"tag": 1023, "value": "22,000", "printable": "22"}
 			]},
-			{"tag": 1077, "value": 1359967045, "printable": "ФП\t1359967045"}
+			{"tag": 1077, "value": "1359967045", "printable": "ФП\t1359967045"}
 		]
   }
 }}`,
@@ -149,7 +156,7 @@ func TestParseResponseDoc(t *testing.T) {
 
 				findCheckEqual(t, d, 1018, "7725225244")
 				findCheckEqual(t, d, 1048, "ЗАВОД ТРУДНОДОБЫВАЕМЫХ КЕРАМИЧЕСКИХ ЦВЕТОВ")
-				findCheckEqual(t, d, 1077, uint64(1359967045))
+				findCheckEqual(t, d, 1077, "1359967045")
 				findCheckEqual(t, d, 1116, uint32(19))
 
 				stlv := d.FindByTag(1059)

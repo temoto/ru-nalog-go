@@ -80,6 +80,13 @@ func (self *TLV) SetValue(value interface{}) {
 	switch self.TagDesc.Kind {
 	case DataKindBool:
 		self.value = value.(bool)
+	case DataKindBytes:
+		if x, ok := value.([]byte); ok {
+			self.value = x
+		}
+		if x, ok := value.(string); ok {
+			self.value = []byte(x)
+		}
 	case DataKindString:
 		self.value = value.(string)
 	case DataKindVLN:
@@ -101,16 +108,27 @@ func (self *TLV) String() string {
 	if !self.Varlen {
 		return self.FixedString()
 	}
-	return self.value.(string)
+	x := toString(self.value)
+	if s, ok := x.(string); ok {
+		return s
+	}
+	panic("value")
 }
 
 func (self *TLV) FixedString() string {
-	crude := self.value.(string)
-	return strings.TrimRightFunc(crude, isSpace)
+	crude := toString(self.value)
+	if s, ok := crude.(string); ok {
+		return strings.TrimRightFunc(s, isSpace)
+	}
+	panic("value")
 }
 
 func (self *TLV) Bool() bool {
 	return self.value.(bool)
+}
+
+func (self *TLV) Float64() float64 {
+	return self.value.(float64)
 }
 
 func (self *TLV) Time() time.Time {
@@ -128,6 +146,9 @@ func (self *TLV) Uint64() uint64 {
 	}
 	if u32, ok := self.value.(uint32); ok {
 		return uint64(u32)
+	}
+	if ui, ok := self.value.(uint); ok {
+		return uint64(ui)
 	}
 	return self.value.(uint64)
 }
@@ -151,6 +172,16 @@ func (self *TLV) FindByTag(tag Tag) *TLV {
 }
 
 func isSpace(r rune) bool { return r == ' ' }
+
+func toString(v interface{}) interface{} {
+	if s, ok := v.(string); ok {
+		return s
+	}
+	if b, ok := v.([]byte); ok {
+		return string(b)
+	}
+	return fmt.Errorf("toString v=%q", v)
+}
 
 func toVLN(v interface{}, length uint16) interface{} {
 	var u uint64
