@@ -3,6 +3,7 @@ package ru_nalog
 //go:generate ./script/generate
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -81,10 +82,16 @@ func (self *TLV) SetValue(value interface{}) {
 		self.value = value.(bool)
 	case DataKindString:
 		self.value = value.(string)
+	case DataKindVLN:
+		self.value = toVLN(value, self.TagDesc.Length)
 	// case DataKindTime:
 	default: // FIXME
 		self.value = value
 	}
+}
+
+func (self *TLV) Bytes() []byte {
+	return self.value.([]byte)
 }
 
 func (self *TLV) String() string {
@@ -116,6 +123,12 @@ func (self *TLV) Uint32() uint32 {
 
 // VLN / byte[] bug
 func (self *TLV) Uint64() uint64 {
+	if u64, ok := self.value.(uint64); ok {
+		return u64
+	}
+	if u32, ok := self.value.(uint32); ok {
+		return uint64(u32)
+	}
 	return self.value.(uint64)
 }
 
@@ -138,3 +151,28 @@ func (self *TLV) FindByTag(tag Tag) *TLV {
 }
 
 func isSpace(r rune) bool { return r == ' ' }
+
+func toVLN(v interface{}, length uint16) interface{} {
+	var u uint64
+	switch n := v.(type) {
+	case int32:
+		u = uint64(n)
+	case uint32:
+		u = uint64(n)
+	case int:
+		u = uint64(n)
+	case uint:
+		u = uint64(n)
+	case int64:
+		u = uint64(n)
+	case uint64:
+		u = uint64(n)
+	// TODO case string: strconv.ParseInt
+	default:
+		return fmt.Errorf("toVLN v=%q", v)
+	}
+	if length <= 6 {
+		return uint32(u)
+	}
+	return u
+}

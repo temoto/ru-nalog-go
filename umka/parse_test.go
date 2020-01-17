@@ -14,11 +14,11 @@ func findCheckEqual(t testing.TB, f ru_nalog.FindByTager, tag ru_nalog.Tag, expe
 	t.Helper()
 	message := fmt.Sprintf("tag=%d", tag)
 	if tlv := f.FindByTag(tag); assert.NotNil(t, tlv, message) {
-		switch expected.(type) {
+		switch expected := expected.(type) {
 		case bool:
 			require.Equal(t, expected, tlv.Bool(), message)
 		case time.Time:
-			require.Equal(t, expected.(time.Time).UnixNano(), tlv.Time().UnixNano(), message)
+			require.Equal(t, expected.UnixNano(), tlv.Time().UnixNano(), message)
 		case string:
 			require.Equal(t, expected, tlv.String(), message)
 		default:
@@ -155,7 +155,7 @@ func TestParseResponseDoc(t *testing.T) {
 				stlv := d.FindByTag(1059)
 				require.NotNil(t, stlv)
 				findCheckEqual(t, stlv, 1023, uint64(22000))
-				findCheckEqual(t, stlv, 1079, uint64(3300))
+				findCheckEqual(t, stlv, 1079, uint32(3300))
 			}},
 	}
 	for _, c := range cases {

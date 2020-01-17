@@ -1,6 +1,7 @@
 package ru_nalog
 
 // kinds of TLV.value
+//go:generate stringer -type=DataKind -trimprefix=DataKind
 type DataKind uint
 
 const (
