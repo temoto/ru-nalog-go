@@ -161,7 +161,7 @@ func TestParseResponseDoc(t *testing.T) {
 
 				stlv := d.FindByTag(1059)
 				require.NotNil(t, stlv)
-				findCheckEqual(t, stlv, 1023, uint64(22000))
+				findCheckEqual(t, stlv, 1023, float64(22))
 				findCheckEqual(t, stlv, 1079, uint32(3300))
 			}},
 	}

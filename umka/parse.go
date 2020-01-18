@@ -3,7 +3,6 @@ package umka
 import (
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -57,16 +56,12 @@ func ParseResponseDoc(b []byte) (*ru_nalog.Doc, error) {
 }
 
 func (d *docdata) ToDoc() (*ru_nalog.Doc, error) {
-	fd := &ru_nalog.Doc{
-		Number: d.DocNumber,
-		Type:   d.DocType,
-		Props:  make([]ru_nalog.TLV, len(d.Props)),
-	}
+	fd := ru_nalog.NewDoc(d.DocNumber, d.DocType)
 	errs := make([]error, 0, 8)
-	for i, p := range d.Props {
+	for _, p := range d.Props {
 		t, err := p.ToTLV()
 		if err == nil {
-			fd.Props[i] = *t
+			fd.Props.Append(t)
 		} else {
 			errs = append(errs, err)
 		}
@@ -82,16 +77,14 @@ func (p *prop) ToTLV() (*ru_nalog.TLV, error) {
 	}
 	switch t.Kind {
 	case ru_nalog.DataKindSTLV:
-		tlvs := make([]ru_nalog.TLV, len(p.Props))
-		for i, child := range p.Props {
+		for _, child := range p.Props {
 			subt, err := child.ToTLV()
 			if err != nil {
 				err = errors.Annotatef(err, "prop=%#v", p)
 				return nil, err
 			}
-			tlvs[i] = *subt
+			t.Append(subt)
 		}
-		t.SetValue(tlvs)
 	case ru_nalog.DataKindTime:
 		crude := p.Value.(string)
 		tim, err := time.Parse(TimeLayout, crude)
@@ -139,13 +132,12 @@ func (p *prop) ToTLV() (*ru_nalog.TLV, error) {
 			crude := p.Value.(string)
 			// "1 333,500" -> 1333500
 			crude = strings.Replace(crude, " ", "", -1)
-			crude = strings.Replace(crude, ",", "", 1)
-			x, err := strconv.ParseUint(crude, 10, 64)
-			if err != nil {
+			crude = strings.Replace(crude, ",", ".", 1)
+			t.SetValue(crude)
+			if err := t.Err(); err != nil {
 				err = errors.Annotatef(err, "prop=%#v", p)
 				return nil, err
 			}
-			t.SetValue(x)
 		default:
 			panic("TODO")
 		}
