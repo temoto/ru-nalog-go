@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/juju/errors"
 	ru_nalog "github.com/temoto/ru-nalog-go"
@@ -158,4 +159,18 @@ func (u *Umka) request(method, path string, body []byte) ([]byte, error) {
 		return nil, errors.Errorf("umka.request request method=%s url=%s body=%x response status=%d respBody=%x", method, urlString, body, resp.StatusCode, respBody)
 	}
 	return respBody, nil
+}
+
+func EnsureCycleValid(u Umker, status *Status, maxAge time.Duration) (*ru_nalog.Doc, error) {
+	if age, err := status.CycleAge(); err != nil {
+		return nil, err
+	} else if age < 0 {
+		return u.CycleOpen()
+	} else if age >= maxAge {
+		if _, err := u.CycleClose(); err != nil {
+			return nil, err
+		}
+		return u.CycleOpen()
+	}
+	return nil, nil
 }

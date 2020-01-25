@@ -2,6 +2,7 @@ package umka
 
 import (
 	"fmt"
+	"github.com/juju/errors"
 	"time"
 )
 
@@ -13,18 +14,20 @@ type Status struct { //nolint:maligned
 	AtmNumber      string   `json:"atmNumber" fdn:"1036"`
 	AutomatMode    bool     `json:"automatMode" fdn:"1001"`
 	Cash           uint64   `json:"cash"`
-	CashBoxNumber  uint32   `json:"cashBoxNumber" fdn:"1"`
-	Cashier        uint32   `json:"cashier"`
-	CycleNumber    uint32   `json:"cycleNumber" fdn:"1"`
-	Dt             string   `json:"dt"`
+	CashBoxNumber  uint32   `json:"cashBoxNumber"` // номер ккм в зале
+	Cashier        uint32   `json:"cashier"`       // номер кассира (в текущем режиме)
+	CycleNumber    uint32   `json:"cycleNumber" fdn:"1038"`
+	CycleOpened    string   `json:"cycleOpened"` // дата/время открытия смены в кассе (текущей или последней закрытой) если смен не было — не передается
+	CycleClosed    string   `json:"cycleClosed"` // дата/время закрытия последней смены в кассе если смена открыта — не передается
+	Dt             string   `json:"dt"`          // дата/время сейчас в кассе
 	Email          string   `json:"email"`
 	ExcisableGoods bool     `json:"excisableGoods" fdn:"1207"`
 	ExternPrinter  bool     `json:"externPrinter" fdn:"1221"`
-	FSFDFVersion   byte     `json:"fSFDFVersion" fdn:"1190"`
-	FDFVersion     byte     `json:"fDFVersion"`
-	Flags          byte     `json:"flags"`
+	FSFDFVersion   byte     `json:"fSFDFVersion" fdn:"1190"` // версия ФФД ФН — из текущих данных фискализации (1 — 1.0, 2 — 1.05, 3 — 1.1 (см ФФД))
+	FDFVersion     byte     `json:"fDFVersion"`              // версия ФФД ККТ — из текущих данных фискализации (1 — 1.0, 2 — 1.05, 3 — 1.1 (см ФФД))
+	Flags          byte     `json:"flags"`                   // Флаги состояния ККМ( ПРИЛОЖЕНИЕ 3)
 	FnsSite        string   `json:"fnsSite" fdn:"1060"`
-	FsNumber       string   `json:"fsNumber" fdn:"1041"`
+	FsNumber       string   `json:"fsNumber" fdn:"1041"` // Номер ФН, с которым была фискализована касса
 	FsStatus       struct { //nolint:maligned
 		CycleIsOpen   byte   `json:"cycleIsOpen"`
 		DebugMode     bool   `json:"debugMode"`
@@ -43,7 +46,7 @@ type Status struct { //nolint:maligned
 			FirstDocDt       string `json:"firstDocDt"`
 			FirstDocNumber   uint64 `json:"firstDocNumber" fdn:"1116"`
 			OfflineDocsCount uint32 `json:"offlineDocsCount" fdn:"1097"`
-			State            uint32 `json:"state"`
+			State            uint32 `json:"state"` // Состояние обмена с ОФД ( ПРИЛОЖЕНИЕ 5)
 		} `json:"transport"`
 	} `json:"fsStatus"`
 	InternetOnly     bool   `json:"internetOnly" fdn:"1108"`
@@ -61,7 +64,7 @@ type Status struct { //nolint:maligned
 	PayoutsSum       uint64 `json:"payoutsSum"`
 	RegCashierInn    string `json:"regCashierInn"`            // "000000000000"
 	RegCashierName   string `json:"regCashierName"`           // "CASHIER 17"
-	RegDate          string `json:"regDate"`                  // "2017-07-12"
+	RegDate          string `json:"regDate"`                  // дата фискализации "2006-01-02"
 	RegDocNumber     uint64 `json:"regDocNumber"`             // 1
 	RegNumber        string `json:"regNumber" fdn:"1037"`     // "0000000001020321"
 	ShortFlags       uint32 `json:"shortFlags"`               // 3
@@ -82,17 +85,52 @@ type Status struct { //nolint:maligned
 	XXX_Subver uint32 `json:"subver"`
 }
 
-func (self *Status) IsCycleOpen() bool { return self.FsStatus.CycleIsOpen == 1 }
-
-func (self *Status) FsExpireDate() time.Time {
-	const layout = "2006-01-02"
-	t, err := time.Parse(layout, self.FsStatus.LifeTime.ExpirationDt)
+// Duration of open cycle (if >= 0) or since last closed cycle (if < 0) relative to `s.Dt`
+// Returns -1,nil if no cycles were opened yet (new fiscal storage).
+// Intended usage:
+// if age, err := status.CycleAge(); err != nil { return err }
+// else if age < 0 { u.CycleOpen() }
+// else if age >= 24*Hour { u.CycleClose() ; u.CycleOpen() }
+func (s *Status) CycleAge() (time.Duration, error) {
+	if s.CycleOpened == "" {
+		return -1, nil // no cycles yet
+	}
+	var err error
+	var d time.Duration
+	var dt, opened, closed time.Time
+	dt, err = time.Parse(TimeLayout, s.Dt)
 	if err != nil {
-		panic(fmt.Sprintf("fs lifetime expire=%s err=%v", self.FsStatus.LifeTime.ExpirationDt, err))
+		return 0, errors.Annotatef(err, "CycleAge invalid dt=%s", s.Dt)
+	}
+	if s.CycleClosed != "" {
+		if closed, err = time.Parse(TimeLayout, s.CycleClosed); err != nil {
+			return 0, errors.Annotatef(err, "CycleAge invalid closed=%s", s.CycleClosed)
+		}
+		if d = dt.Sub(closed); d <= 0 {
+			return 0, errors.Errorf("CycleAge dt=%s closed=%s d=%s", s.Dt, s.CycleClosed, d.String())
+		}
+		return -d, nil
+	}
+	if opened, err = time.Parse(TimeLayout, s.CycleOpened); err != nil {
+		return 0, errors.Annotatef(err, "CycleAge invalid opened=%s", s.CycleOpened)
+	}
+	if d = dt.Sub(opened); d < 0 {
+		return 0, errors.Errorf("CycleAge dt=%s opened=%s d=%s", s.Dt, s.CycleOpened, d.String())
+	}
+	return d, nil
+}
+
+func (s *Status) IsCycleOpen() bool { return s.FsStatus.CycleIsOpen == 1 }
+
+func (s *Status) FsExpireDate() time.Time {
+	const layout = "2006-01-02"
+	t, err := time.Parse(layout, s.FsStatus.LifeTime.ExpirationDt)
+	if err != nil {
+		panic(fmt.Sprintf("fs lifetime expire=%s err=%v", s.FsStatus.LifeTime.ExpirationDt, err))
 	}
 	return t
 }
 
-func (self *Status) OfdOfflineCount() uint32 {
-	return self.FsStatus.Transport.OfflineDocsCount
+func (s *Status) OfdOfflineCount() uint32 {
+	return s.FsStatus.Transport.OfflineDocsCount
 }
