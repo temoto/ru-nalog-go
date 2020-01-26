@@ -65,8 +65,8 @@ func (u *Umka) Status() (*Status, error) {
 	if err != nil {
 		return nil, errors.Annotate(err, tag)
 	}
-	var f frame
-	if err = f.parse(body); err != nil {
+	var f Frame
+	if err = f.parseJSON(body); err != nil {
 		return nil, errors.Annotate(err, tag)
 	}
 	return f.CashboxStatus, nil
@@ -77,7 +77,7 @@ func (u *Umka) GetDoc(number uint32) (*ru_nalog.Doc, error) {
 }
 
 func (u *Umka) FiscalCheck(sessionId string, d *ru_nalog.Doc) (*ru_nalog.Doc, error) {
-	f := frame{Document: &Document{SessionID: sessionId}}
+	f := Frame{Document: &Document{SessionID: sessionId}}
 	if err := f.Document.Data.setDoc(d); err != nil {
 		return nil, err
 	}
@@ -91,7 +91,7 @@ func (u *Umka) getDocJSON(path string) (*ru_nalog.Doc, error) {
 	return u.requestDocJSON("GET", path, nil)
 }
 
-func (u *Umka) requestDocJSON(method, path string, req *frame) (*ru_nalog.Doc, error) {
+func (u *Umka) requestDocJSON(method, path string, req *Frame) (*ru_nalog.Doc, error) {
 	f, err := u.requestJSON(method, path, req)
 	if err != nil {
 		return nil, errors.Annotate(err, path)
@@ -106,7 +106,7 @@ func (u *Umka) requestDocJSON(method, path string, req *frame) (*ru_nalog.Doc, e
 	return doc, err
 }
 
-func (u *Umka) requestJSON(method, path string, req *frame) (*frame, error) {
+func (u *Umka) requestJSON(method, path string, req *Frame) (*Frame, error) {
 	var respBody []byte
 	var err error
 	if req != nil {
@@ -117,7 +117,7 @@ func (u *Umka) requestJSON(method, path string, req *frame) (*frame, error) {
 	if respBody, err = u.request(method, path, respBody); err != nil {
 		return nil, err
 	}
-	var resp frame
+	var resp Frame
 	if err = json.Unmarshal(respBody, &resp); err != nil {
 		return nil, errors.Annotatef(err, "umka.requestJSON/json.Unmarshal respBody=%x", respBody)
 	}

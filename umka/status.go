@@ -78,9 +78,10 @@ type Status struct { //nolint:maligned
 	XXX_Mode    uint32 `json:"mode"`    // 0:choice 1:reg 2:x-report 3:z-report 4:prog 5:serial 6:fstore 7:aux
 	XXX_SubMode uint32 `json:"subMode"` //
 
-	// KktVersion string `fdn:"1188"`
+	// KktVersion    string `fdn:"1188"`
 	// KktFfdVersion string `fdn:"1189"`
-	// FsFfdVersion string `fdn:"1190"`
+	// FsFfdVersion  string `fdn:"1190"`
+
 	XXX_Ver    uint32 `json:"ver"`
 	XXX_Subver uint32 `json:"subver"`
 }

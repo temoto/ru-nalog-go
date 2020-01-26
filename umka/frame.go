@@ -10,9 +10,8 @@ import (
 	ru_nalog "github.com/temoto/ru-nalog-go"
 )
 
-// serialization helper
-// contains fields used by multiple different request and response
-type frame struct {
+// Request/response container for marshalling
+type Frame struct {
 	Protocol      int       `json:"protocol,omitempty"` // 1=JSON 3=XML
 	Version       string    `json:"version,omitempty"`  // "1.0"
 	CashboxStatus *Status   `json:"cashboxStatus,omitempty"`
@@ -36,17 +35,18 @@ type docdata struct {
 	MoneyType int              `json:"moneyType"` //ТИП ОПЛАТЫ (1. Наличным, 2. Электронными, 3. Предоплата, 4. Постоплата, 5. Встречное предоставление)
 	Sum       uint64           `json:"sum"`       // Сумма закрытия чека (может быть 0, если без сдачи)
 	Type      int              `json:"type"`      // Тип документа (1. Продажа,2.Возврат продажи, 4. Покупка, 5. Возврат покупки, 7. Коррекция прихода, 9. Коррекция расхода)
-	Props     []prop           `json:"fiscprops"`
+	Props     []Prop           `json:"fiscprops"`
 }
-type prop struct {
+
+type Prop struct {
 	Caption   string       `json:"caption,omitempty"`
 	Printable string       `json:"printable,omitempty"`
-	Props     []prop       `json:"fiscprops,omitempty"`
+	Props     []Prop       `json:"fiscprops,omitempty"`
 	Tag       ru_nalog.Tag `json:"tag"`
 	Value     interface{}  `json:"value,omitempty"`
 }
 
-func (f *frame) String() string {
+func (f *Frame) String() string {
 	if f == nil {
 		return ""
 	}
@@ -61,7 +61,7 @@ func (f *frame) String() string {
 	return s
 }
 
-func (f *frame) parse(b []byte) error {
+func (f *Frame) parseJSON(b []byte) error {
 	if err := json.Unmarshal(b, f); err != nil {
 		err = errors.Trace(err)
 		return err
@@ -72,7 +72,7 @@ func (f *frame) parse(b []byte) error {
 	return nil
 }
 
-func (f *frame) checkDocumentResult() error {
+func (f *Frame) checkDocumentResult() error {
 	if f.Document == nil {
 		return errors.Errorf("no document")
 	}
@@ -83,8 +83,8 @@ func (f *frame) checkDocumentResult() error {
 }
 
 func ParseResponseDoc(b []byte) (*ru_nalog.Doc, error) {
-	var f frame
-	if err := f.parse(b); err != nil {
+	var f Frame
+	if err := f.parseJSON(b); err != nil {
 		return nil, err
 	}
 	if err := f.checkDocumentResult(); err != nil {
@@ -122,7 +122,7 @@ func (d *docdata) setDoc(doc *ru_nalog.Doc) error {
 	d.Type = 1      // FIXME from doc
 	d.MoneyType = 1 // FIXME from doc
 	// d.Sum = 0       // FIXME from doc/gross
-	d.Props = make([]prop, 0, 64) // TODO d.Len()
+	d.Props = make([]Prop, 0, 64) // TODO d.Len()
 	for _, t := range doc.Props.Children() {
 		if p, err := propFromTLV(t); err != nil {
 			return err
@@ -133,8 +133,8 @@ func (d *docdata) setDoc(doc *ru_nalog.Doc) error {
 	return nil
 }
 
-func propFromTLV(t ru_nalog.TLV) (prop, error) {
-	p := prop{}
+func propFromTLV(t ru_nalog.TLV) (Prop, error) {
+	p := Prop{}
 	p.Tag = t.Tag
 	children := t.Children()
 	switch {
@@ -142,7 +142,7 @@ func propFromTLV(t ru_nalog.TLV) (prop, error) {
 		p.Value = fmt.Sprintf("%.3f", t.Float64())
 
 	case children != nil:
-		p.Props = make([]prop, 0, len(children))
+		p.Props = make([]Prop, 0, len(children))
 		for _, it := range children {
 			if ip, err := propFromTLV(it); err != nil {
 				return p, err
@@ -157,7 +157,7 @@ func propFromTLV(t ru_nalog.TLV) (prop, error) {
 	return p, nil
 }
 
-func (p *prop) toTLV() (*ru_nalog.TLV, error) {
+func (p *Prop) toTLV() (*ru_nalog.TLV, error) {
 	// log.Printf("prop=%#v", p)
 	switch p.Tag {
 	case 1196: // QR query string
