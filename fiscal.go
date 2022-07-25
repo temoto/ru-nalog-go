@@ -40,6 +40,7 @@ const (
 type Doc struct {
 	Number uint32 `fdn:"1040"`
 	Type   DocType
+	MoneyType int //ТИП ОПЛАТЫ (1. Наличным, 2. Электронными, 3. Предоплата, 4. Постоплата
 	Props  TLV
 }
 
