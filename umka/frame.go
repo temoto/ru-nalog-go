@@ -120,7 +120,7 @@ func (d *docdata) ToDoc() (*ru_nalog.Doc, error) {
 
 func (d *docdata) setDoc(doc *ru_nalog.Doc) error {
 	d.Type = 1      // FIXME from doc
-	d.MoneyType = 1 // FIXME from doc
+	d.MoneyType = doc.MoneyType
 	// d.Sum = 0       // FIXME from doc/gross
 	d.Props = make([]Prop, 0, 64) // TODO d.Len()
 	for _, t := range doc.Props.Children() {
